@@ -1,0 +1,99 @@
+{
+  "variables": {
+    "cluster": "{{env `cluster`}}",
+    "cpu_cores": "{{env `cpu_cores`}}",
+    "CPUs": "{{env `CPUs`}}",
+    "datacenter": "{{env `datacenter`}}",
+    "datastore": "{{env `datastore`}}",
+    "disk_size": "{{env `disk_size`}}",
+    "host": "{{env `host`}}",
+    "os_iso_checksum": "{{env `os_iso_checksum`}}",
+    "os_iso_path": "{{env `os_iso_path`}}",
+    "RAM": "{{env `RAM`}}",
+    "vcenter_password": "{{env `vcenter_password`}}",
+    "vcenter_server": "{{env `vcenter_server`}}",
+    "vcenter_username": "{{env `vcenter_username`}}",
+    "vm_name": "{{env `vm_name`}}",
+    "vmtools_iso_path": "{{env `vmtools_iso_path`}}",
+    "winrm_username": "{{env `winrm_username`}}",
+    "winrm_password": "{{env `winrm_password`}}"
+  },
+  "provisioners": [
+    {
+      "type": "powershell",
+      "inline": [
+        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12",
+        "Invoke-WebRequest -Uri https://github.com/git-for-windows/git/releases/download/v2.28.0.windows.1/Git-2.28.0-64-bit.exe -OutFile $env:TEMP/Git-2.28.0-64-bit.exe",
+        "Start-Process -FilePath $env:TEMP/Git-2.28.0-64-bit.exe /SILENT -Wait",
+        "Remove-Item $env:TEMP/Git-2.28.0-64-bit.exe",
+        "Invoke-WebRequest -Uri https://repo.saltstack.com/windows/Salt-Minion-3001.1-Py3-AMD64-Setup.exe -OutFile $env:TEMP/Salt-Minion-3001.1-Py3-AMD64-Setup.exe",
+        "Start-Process -FilePath $env:TEMP/Salt-Minion-3001.1-Py3-AMD64-Setup.exe \"/S /start-minion=0\" -Wait",
+        "Remove-Item $env:TEMP/Salt-Minion-3001.1-Py3-AMD64-Setup.exe"
+      ]
+    },
+    {
+      "type": "windows-shell",
+      "inline": ["salt-call --local winrepo.update_git_repos"]
+    },
+    {
+      "type": "windows-shell",
+      "inline": ["salt-call --local pkg.refresh_db"]
+    },
+    {
+
+      "guest_os_type": "windows",
+      "local_state_tree": "files/salt/",
+      "skip_bootstrap": true,
+      "type": "salt-masterless"
+    }
+  ],
+  "builders": [
+    {
+      "type": "vsphere-iso",
+      "iso_paths": [
+        "{{user `os_iso_path`}}",
+        "{{user `vmtools_iso_path`}}"
+      ],
+      "iso_checksum": "{{user `os_iso_checksum`}}",
+      "boot_wait": "2m",
+      "floppy_files": [
+        "files/boot/autounattend.xml",
+        "files/scripts/vmtools.cmd",
+        "files/scripts/configure_windows_updates.bat",
+        "files/scripts/install_windows_updates.ps1"
+      ],
+      "vcenter_server": "{{user `vcenter_server`}}",
+      "username": "{{user `vcenter_username`}}",
+      "password": "{{user `vcenter_password`}}",
+      "insecure_connection": true,
+      "datacenter": "{{user `datacenter`}}",
+      "CPUs": "{{user `CPUs`}}",
+      "cpu_cores": "{{user `cpu_cores`}}",
+      "RAM": "{{user `RAM`}}",
+      "vm_name": "{{user `vm_name`}}",
+      "cluster": "{{user `cluster`}}",
+      "host": "{{user `host`}}",
+      "datastore": "{{user `datastore`}}",
+      "shutdown_command": "shutdown /s /t 10 /f /d p:4:1 /c \"Packer Shutdown\"",
+      "guest_os_type": "windows8Server64Guest",
+      "disk_controller_type": [
+        "lsilogic-sas"
+      ],
+      "storage": [
+        {
+          "disk_size": "{{user `disk_size`}}",
+          "disk_thin_provisioned": true
+        }
+      ],
+      "network_adapters": [
+        {
+          "network": "VM Network",
+          "network_card": "vmxnet3"
+        }
+      ],
+      "communicator": "winrm",
+      "winrm_username": "{{user `winrm_username`}}",
+      "winrm_password": "{{user `winrm_password`}}"
+    }
+  ]
+}

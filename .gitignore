@@ -1,0 +1,4 @@
+env.sh
+packer_cache
+*.log
+autounattend.xml
